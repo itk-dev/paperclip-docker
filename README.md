@@ -13,3 +13,11 @@ docker compose up -d
 # Server (https://${COMPOSE_SERVER_DOMAIN})
 docker compose -f docker-compose.server.yml up -d
 ```
+
+## Own LiteLLM / OpenAI-compatible gateway
+
+Needs an image newer than `v2026.1005.0` (`PAPERCLIP_IMAGE_TAG=nightly`). In the UI:
+**Connectors** → *Responses API* (Codex), *Chat Completions API* (OpenCode/Hermes) or
+*Messages API* (Claude) → base URL (e.g. `https://litellm.example.com/v1`) + LiteLLM key.
+During onboarding/new agent use the **Advanced / Custom Gateway** tile. Remote URLs must be HTTPS.
+Type the LiteLLM model name manually; then **Run test** on the agent.

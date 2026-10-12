@@ -7,7 +7,7 @@ networks:
 
 services:
   paperclip:
-    image: ghcr.io/paperclipai/paperclip:latest
+    image: ghcr.io/paperclipai/paperclip:${PAPERCLIP_IMAGE_TAG:-latest}
     restart: unless-stopped
     expose:
       - "3100"
