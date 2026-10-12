@@ -19,5 +19,6 @@ docker compose -f docker-compose.server.yml up -d
 Needs an image newer than `v2026.1005.0` (`PAPERCLIP_IMAGE_TAG=nightly`). In the UI:
 **Connectors** → *Responses API* (Codex), *Chat Completions API* (OpenCode/Hermes) or
 *Messages API* (Claude) → base URL (e.g. `https://litellm.example.com/v1`) + LiteLLM key.
-During onboarding/new agent use the **Advanced / Custom Gateway** tile. Remote URLs must be HTTPS.
+Onboarding has no gateway option: finish it with a subscription/API key (or press Esc), then add the
+connector and use the **Custom Gateway** tile under **Agents → New agent**. Remote URLs must be HTTPS.
 Type the LiteLLM model name manually; then **Run test** on the agent.
