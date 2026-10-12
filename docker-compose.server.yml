@@ -1,0 +1,74 @@
+networks:
+  frontend:
+    external: true
+  app:
+    driver: bridge
+    internal: false
+
+services:
+  paperclip:
+    image: ghcr.io/paperclipai/paperclip:latest
+    restart: unless-stopped
+    expose:
+      - "3000"
+      - "3001"
+    networks:
+      - frontend
+      - app
+    volumes:
+      - ./data/paperclip:/data
+    environment:
+      - PAPERCLIP_DB_URL=postgresql://paperclip:${DB_PASSWORD}@postgres:5432/paperclip
+      - PAPERCLIP_REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PAPERCLIP_SECRET_KEY=${SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.middlewares.paperclip-auth.basicauth.users=${PAPERCLIP_BASIC_AUTH}"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+      # HTTP Router (for redirect)
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.rule=Host(`${COMPOSE_SERVER_DOMAIN}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.entrypoints=web"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.middlewares=redirect-to-https"
+
+      # HTTPS Router
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-https.rule=Host(`${COMPOSE_SERVER_DOMAIN}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-https.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-https.service=${COMPOSE_PROJECT_NAME}-paperclip"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-https.middlewares=paperclip-auth"
+
+      # Service
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-paperclip.loadbalancer.server.port=3000"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    networks:
+      - app
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=paperclip
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=paperclip
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperclip"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - app
+    volumes:
+      - ./data/redis:/data

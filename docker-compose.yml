@@ -1,0 +1,65 @@
+networks:
+  frontend:
+    external: true
+  app:
+    driver: bridge
+    internal: false
+
+services:
+  paperclip:
+    image: ghcr.io/paperclipai/paperclip:latest
+    ports:
+      - "3000" # Dashboard
+      - "3001" # API
+    networks:
+      - frontend
+      - app
+    volumes:
+      - ./data/paperclip:/data
+    environment:
+      - PAPERCLIP_DB_URL=postgresql://paperclip:${DB_PASSWORD}@postgres:5432/paperclip
+      - PAPERCLIP_REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PAPERCLIP_SECRET_KEY=${SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.middlewares.paperclip-auth.basicauth.users=${PAPERCLIP_BASIC_AUTH}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${COMPOSE_DOMAIN}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.service=${COMPOSE_PROJECT_NAME}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.middlewares=paperclip-auth"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=3000"
+      # API
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-api.rule=Host(`${COMPOSE_DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-api.service=${COMPOSE_PROJECT_NAME}-api"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-api.middlewares=paperclip-auth"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-api.loadbalancer.server.port=3001"
+
+  postgres:
+    image: postgres:17-alpine
+    networks:
+      - app
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=paperclip
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=paperclip
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperclip"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - app
+    volumes:
+      - ./data/redis:/data
