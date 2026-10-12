@@ -10,24 +10,24 @@ services:
     image: ghcr.io/paperclipai/paperclip:latest
     restart: unless-stopped
     expose:
-      - "3000"
-      - "3001"
+      - "3100"
     networks:
       - frontend
       - app
+    pids_limit: 2048
+    stop_grace_period: 90s
     volumes:
-      - ./data/paperclip:/data
+      - ./data/paperclip:/paperclip
     environment:
-      - PAPERCLIP_DB_URL=postgresql://paperclip:${DB_PASSWORD}@postgres:5432/paperclip
-      - PAPERCLIP_REDIS_URL=redis://redis:6379
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - PAPERCLIP_SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgres://paperclip:${DB_PASSWORD}@postgres:5432/paperclip
+      - PAPERCLIP_PUBLIC_URL=https://${COMPOSE_SERVER_DOMAIN}
+      - USER_UID=${USER_UID:-1000}
+      - USER_GID=${USER_GID:-1000}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}
+      - PAPERCLIP_TOOL_ACTION_SIGNING_SECRET=${PAPERCLIP_TOOL_ACTION_SIGNING_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=frontend"
@@ -46,7 +46,7 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-https.middlewares=paperclip-auth"
 
       # Service
-      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-paperclip.loadbalancer.server.port=3000"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-paperclip.loadbalancer.server.port=3100"
 
   postgres:
     image: postgres:17-alpine
@@ -60,15 +60,7 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=paperclip
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paperclip"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U paperclip -d paperclip"]
+      interval: 2s
       timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    networks:
-      - app
-    volumes:
-      - ./data/redis:/data
+      retries: 30

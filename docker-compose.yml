@@ -9,24 +9,24 @@ services:
   paperclip:
     image: ghcr.io/paperclipai/paperclip:latest
     ports:
-      - "3000" # Dashboard
-      - "3001" # API
+      - "3100"
     networks:
       - frontend
       - app
+    pids_limit: 2048
+    stop_grace_period: 90s
     volumes:
-      - ./data/paperclip:/data
+      - ./data/paperclip:/paperclip
     environment:
-      - PAPERCLIP_DB_URL=postgresql://paperclip:${DB_PASSWORD}@postgres:5432/paperclip
-      - PAPERCLIP_REDIS_URL=redis://redis:6379
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - PAPERCLIP_SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgres://paperclip:${DB_PASSWORD}@postgres:5432/paperclip
+      - PAPERCLIP_PUBLIC_URL=http://${COMPOSE_DOMAIN}
+      - USER_UID=${USER_UID:-1000}
+      - USER_GID=${USER_GID:-1000}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}
+      - PAPERCLIP_TOOL_ACTION_SIGNING_SECRET=${PAPERCLIP_TOOL_ACTION_SIGNING_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=frontend"
@@ -34,12 +34,7 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${COMPOSE_DOMAIN}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.service=${COMPOSE_PROJECT_NAME}"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.middlewares=paperclip-auth"
-      - "traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=3000"
-      # API
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-api.rule=Host(`${COMPOSE_DOMAIN}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-api.service=${COMPOSE_PROJECT_NAME}-api"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-api.middlewares=paperclip-auth"
-      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-api.loadbalancer.server.port=3001"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=3100"
 
   postgres:
     image: postgres:17-alpine
@@ -52,14 +47,7 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=paperclip
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paperclip"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U paperclip -d paperclip"]
+      interval: 2s
       timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    networks:
-      - app
-    volumes:
-      - ./data/redis:/data
+      retries: 30
